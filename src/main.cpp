@@ -11,6 +11,7 @@
 
 using namespace std;
 
+// TODO: May be try to lock the logs for better understanding of the output
 void log(const std::string &message)
 {
     // Get current time with milliseconds
@@ -63,8 +64,59 @@ void testing_unbuffered_channel()
     receiver.join();
 }
 
+void testing_buffered_channel()
+{
+    log("Testing buffered channel...");
+    Channel<int> channel(3); // Create a buffered channel of size 3
+
+    // sender thread
+    thread sender([&channel]()
+                  {
+        log("Sender sending 1...");
+        channel.send(1);
+        log("Sender sent 1.");
+
+        log("Sender sending 2...");
+        channel.send(2);
+        log("Sender sent 2.");
+
+        log("Sender sending 3...");
+        channel.send(3);
+        log("Sender sent 3.");
+
+        log("Sender sending 4...");
+        channel.send(4); // This will block until a receiver consumes some data
+        log("Sender sent 4."); });
+
+    // receiver thread
+    thread receiver([&channel]()
+                    {
+        log("Waiting to receive...");
+        int value = channel.receive();
+        string v = to_string(value);
+        log("Receiver received " + v);
+
+        value = channel.receive();
+        v = to_string(value);
+        log("Receiver received " + v);
+
+        value = channel.receive();
+        v = to_string(value);
+        log("Receiver received " + v);
+
+        value = channel.receive(); // This will block until sender sends more data
+        v = to_string(value);
+        log("Receiver received " + v); });
+
+    log("Testing buffered channel complete.");
+    sender.join();
+    receiver.join();
+}
+
 int main()
 {
     testing_unbuffered_channel();
+    cout << "----------------------------------" << endl;
+    testing_buffered_channel();
     return 0;
 }
