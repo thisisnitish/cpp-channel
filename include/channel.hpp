@@ -1,21 +1,25 @@
 #pragma once
 
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
 #include <optional>
+#include <queue>
+#include <stdexcept>
 
 using namespace std;
 
 template <typename T>
-class Channel
-{
-public:
-    explicit Channel(size_t buffer_size = 0); // buffer_size = 0 means unbuffered channel
+class Channel {
+   public:
+    explicit Channel(size_t buffer_size = 0);  // buffer_size = 0 means unbuffered channel
 
-    void send(const T &value);
-    T receive();
+    void send(const T &value);  // Blocking send
+    optional<T> receive();      // Blocking receive, returns nullopt if channel is closed and empty
 
-private:
+    void close();            // Close the channel, no more sends allowed
+    bool is_closed() const;  // Check if the channel is closed
+
+   private:
     mutex mtx;
     condition_variable cv_sender_;
     condition_variable cv_receiver_;
@@ -27,6 +31,8 @@ private:
     // For unbuffered channels, we use an optional to hold the data.
     optional<T> data_;
     bool has_data_ = false;
+
+    bool closed_ = false;  // Indicates if the channel is closed
 };
 
 #include "channel.tpp"

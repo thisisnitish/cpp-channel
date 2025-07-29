@@ -4,6 +4,9 @@
 # Compiled C/C++ files
 build/
 
+# vs code workspace settings
+.vscode/
+
 # Compiled Object files
 *.slo
 *.lo
