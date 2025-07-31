@@ -1,5 +1,6 @@
 // This is for testing the channel class
 
+#include <cassert>
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -262,6 +263,94 @@ void testing_try_operations() {
     receiver.join();
 }
 
+void test_async_send_receive_immediate_match() {
+    log("Testing async_send and async_receive immediate match...");
+    Channel<int> channel;
+
+    auto future_receive = channel.async_receive();
+    log("Waiting for async receive...");
+
+    // Immediately send a value
+    auto future_send = channel.async_send(42);
+    log("Async send initiated.");
+
+    future_send.get();                   // wait for send to complete
+    auto result = future_receive.get();  // wait for receive to complete
+
+    assert(result.has_value() && result.value() == 42);
+    log("Async send and receive completed successfully with value: " + to_string(result.value()));
+}
+
+void test_async_send_blocks_until_receive() {
+    log("Testing async_send blocks until receive...");
+    Channel<int> channel;
+
+    auto future_send = channel.async_send(99);
+    log("Async send initiated, waiting for receiver...");
+    this_thread::sleep_for(chrono::seconds(1));  // Simulate some delay
+    assert(!future_send.valid() || future_send.wait_for(chrono::seconds(0)) == future_status::timeout);
+    // future_send.wait();
+    log("Async send is still pending, now receiving...");
+
+    auto future_receive = channel.async_receive();
+    log("Async receive initiated.");
+    auto result = future_receive.get();  // This will block until the value is sent
+
+    assert(result.has_value() && result.value() == 99);
+    log("Async send and receive completed successfully with value: " + to_string(result.value()));
+}
+
+void test_async_receive_blocks_until_send() {
+    log("Testing async receive blocks until send...");
+    Channel<int> ch;
+
+    auto futureRecv = ch.async_receive();
+
+    this_thread::sleep_for(chrono::seconds(1));  // Simulate some delay
+    assert(futureRecv.wait_for(chrono::seconds(0)) == future_status::timeout);
+    // futureRecv.wait();
+    log("Async receive is still pending, now sending...");
+
+    auto futureSend = ch.async_send(123);
+
+    futureSend.get();
+    auto result = futureRecv.get();
+    assert(result.has_value());
+    assert(result.value() == 123);
+
+    log("Async receive blocks until send completed successfully with value: " + to_string(result.value()));
+}
+
+void test_async_receive_after_close_returns_nullopt() {
+    log("Testing async receive after close returns nullopt...");
+    Channel<int> ch;
+
+    ch.close();
+
+    auto future_receive = ch.async_receive();
+    auto result = future_receive.get();
+    assert(result == nullopt);
+    log("Async receive after close returns nullopt completed successfully");
+}
+
+void test_async_send_after_close_fails() {
+    log("Testing async send after close fails...");
+    Channel<int> ch;
+
+    ch.close();
+
+    auto future_send = ch.async_send(10);
+
+    try {
+        future_send.get();  // this should throw
+        assert(false && "Expected exception from async_send after channel close");
+    } catch (const runtime_error& e) {
+        log(string("Caught expected exception: ") + e.what());
+    }
+
+    log("Testing async send after close fails completed successfully...");
+}
+
 int main() {
     testing_unbuffered_channel();
     cout << "----------------------------------" << endl;
@@ -270,6 +359,16 @@ int main() {
     testing_close_functionality();
     cout << "----------------------------------" << endl;
     testing_try_operations();
+    cout << "----------------------------------" << endl;
+    test_async_send_receive_immediate_match();
+    cout << "----------------------------------" << endl;
+    test_async_send_blocks_until_receive();
+    cout << "----------------------------------" << endl;
+    test_async_receive_blocks_until_send();
+    cout << "----------------------------------" << endl;
+    test_async_receive_after_close_returns_nullopt();
+    cout << "----------------------------------" << endl;
+    test_async_send_after_close_fails();
 
     return 0;
 }

@@ -146,3 +146,17 @@ optional<T> Channel<T>::try_receive() {
         return value;
     }
 }
+
+template <typename T>
+future<void> Channel<T>::async_send(const T &value) {
+    return async(launch::async, [this, value]() {
+        this->send(value);
+    });
+}
+
+template <typename T>
+future<optional<T>> Channel<T>::async_receive() {
+    return async(launch::async, [this]() {
+        return this->receive();
+    });
+}
