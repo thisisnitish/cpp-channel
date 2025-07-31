@@ -155,6 +155,10 @@ void testing_close_functionality() {
         channel.send(2);
         log("Sender sent 2.");
 
+        log("Sender sending 3...");
+        channel.send(3);
+        log("Sender sent 3.");
+
         log("Closing channel...");
         channel.close();
         log("Channel closed."); });
@@ -187,12 +191,85 @@ void testing_close_functionality() {
     receiver.join();
 }
 
+void testing_try_operations() {
+    log("Testing try_send and try_receive operations...");
+    Channel<int> channel(2);  // Create a buffered channel of size 2
+
+    // sender thread
+    thread sender([&channel]() {
+        // log("Trying to send 1...");
+        if (channel.try_send(1)) {
+            log("Sender sent 1.");
+        } else {
+            log("Sender failed to send 1.");
+        }
+        log("Trying to send 2...");
+        if (channel.try_send(2)) {
+            log("Sender sent 2.");
+        } else {
+            log("Sender failed to send 2.");
+        }
+        log("Trying to send 3...");
+        if (channel.try_send(3)) {
+            log("Sender sent 3.");
+        } else {
+            log("Sender failed to send 3.");
+        }
+        log("Trying to send 4...");
+        if (channel.try_send(4)) {
+            log("Sender sent 4.");
+        } else {
+            log("Sender failed to send 4.");
+        }
+    });
+
+    // receiver thread
+    thread receiver([&channel]() {
+        log("Trying to receive...");
+        optional<int> value = channel.try_receive();
+        if (value.has_value()) {
+            log("Receiver received " + to_string(value.value()));
+        } else {
+            log("Receiver received nothing.");
+        }
+
+        value = channel.try_receive();
+        if (value.has_value()) {
+            log("Receiver received " + to_string(value.value()));
+        }
+
+        else {
+            log("Receiver received nothing.");
+        }
+
+        value = channel.try_receive();
+        if (value.has_value()) {
+            log("Receiver received " + to_string(value.value()));
+        } else {
+            log("Receiver received nothing.");
+        }
+
+        value = channel.try_receive();  // Will return nullopt if closed & empty
+        if (value.has_value()) {
+            log("Receiver received " + to_string(value.value()));
+        } else {
+            log("Receiver received nothing.");
+        }
+    });
+
+    log("Testing try_send and try_receive operations complete.");
+    sender.join();
+    receiver.join();
+}
+
 int main() {
     testing_unbuffered_channel();
     cout << "----------------------------------" << endl;
     testing_buffered_channel();
     cout << "----------------------------------" << endl;
     testing_close_functionality();
+    cout << "----------------------------------" << endl;
+    testing_try_operations();
 
     return 0;
 }

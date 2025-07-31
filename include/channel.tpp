@@ -16,7 +16,7 @@ void Channel<T>::send(const T &value) {
         // Go with unbuffered channel logic
 
         // Wait if there's already data waiting to be received
-        cv_sender_.wait(lock, [this]() { return !has_data_; });
+        cv_sender_.wait(lock, [this]() { return !has_data_ || closed_; });
 
         data_ = value;
         has_data_ = true;
@@ -24,7 +24,7 @@ void Channel<T>::send(const T &value) {
         cv_receiver_.notify_one();  // Notify a waiting receiver
 
         // Wait until receiver consumes it
-        cv_sender_.wait(lock, [this]() { return !has_data_; });
+        cv_sender_.wait(lock, [this]() { return !has_data_ || closed_; });
     } else {
         // Go with buffered channel logic
         cv_sender_.wait(lock, [this]() { return buffer_.size() < buffer_size_ || closed_; });
@@ -48,8 +48,10 @@ optional<T> Channel<T>::receive() {
     if (buffer_size_ == 0) {
         // Go with unbuffered channel logic
 
+        waiting_receivers_++;
         // Wait until sender sends data
         cv_receiver_.wait(lock, [this]() { return has_data_ || closed_; });
+        waiting_receivers_--;
 
         if (!has_data_ && closed_) {
             return nullopt;
@@ -97,4 +99,50 @@ template <typename T>
 bool Channel<T>::is_closed() const {
     unique_lock<mutex> lock(mtx);
     return closed_;
+}
+
+template <typename T>
+bool Channel<T>::try_send(const T &value) {
+    unique_lock<mutex> lock(mtx);
+
+    if (closed_) return false;
+
+    if (buffer_size_ == 0) {
+        // unbuffered behavior, need a receiver to consume the data
+        if (waiting_receivers_ == 0 || has_data_) return false;  // No receivers available
+        data_ = value;
+        has_data_ = true;
+        cv_receiver_.notify_one();  // Notify a waiting receiver
+        return true;
+
+    } else {
+        // buffered behavior
+        if (buffer_.size() >= buffer_size_) return false;  // Buffer is full
+        buffer_.push(value);
+        cv_receiver_.notify_one();  // Notify a waiting receiver
+        return true;
+    }
+}
+
+template <typename T>
+optional<T> Channel<T>::try_receive() {
+    unique_lock<mutex> lock(mtx);
+
+    if (buffer_size_ == 0) {
+        // unbuffered behavior
+        if (!has_data_) return nullopt;  // No data available
+
+        T value = *data_;
+        data_.reset();  // Clear the data after receiving
+        has_data_ = false;
+        cv_sender_.notify_one();  // Notify sender that data has been consumed
+        return value;
+    } else {
+        // buffered behavior
+        if (buffer_.empty()) return nullopt;  // No data available
+        T value = buffer_.front();
+        buffer_.pop();
+        cv_sender_.notify_one();  // Notify a waiting sender that there's space in the buffer
+        return value;
+    }
 }

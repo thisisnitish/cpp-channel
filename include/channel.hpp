@@ -16,6 +16,9 @@ class Channel {
     void send(const T &value);  // Blocking send
     optional<T> receive();      // Blocking receive, returns nullopt if channel is closed and empty
 
+    bool try_send(const T &value);  // Non-blocking send, returns false if channel is closed or full
+    optional<T> try_receive();      // Non-blocking receive, returns nullopt if channel is closed and empty
+
     void close();            // Close the channel, no more sends allowed
     bool is_closed() const;  // Check if the channel is closed
 
@@ -32,7 +35,8 @@ class Channel {
     optional<T> data_;
     bool has_data_ = false;
 
-    bool closed_ = false;  // Indicates if the channel is closed
+    bool closed_ = false;           // Indicates if the channel is closed
+    size_t waiting_receivers_ = 0;  // Count of receivers waiting to receive
 };
 
 #include "channel.tpp"
