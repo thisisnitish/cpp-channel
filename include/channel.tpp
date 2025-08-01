@@ -102,6 +102,16 @@ bool Channel<T>::is_closed() const {
 }
 
 template <typename T>
+bool Channel<T>::empty() const {
+    std::lock_guard<std::mutex> lock(mtx);
+    if (buffer_size_ == 0) {
+        return !has_data_;  // unbuffered behaviour
+    } else {
+        return buffer_.empty();  // buffered behaviour
+    }
+}
+
+template <typename T>
 bool Channel<T>::try_send(const T &value) {
     unique_lock<mutex> lock(mtx);
 

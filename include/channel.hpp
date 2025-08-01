@@ -28,8 +28,10 @@ class Channel {
     void close();            // Close the channel, no more sends allowed
     bool is_closed() const;  // Check if the channel is closed
 
+    bool empty() const;
+
    private:
-    mutex mtx;
+    mutable mutex mtx;
     condition_variable cv_sender_;
     condition_variable cv_receiver_;
 
