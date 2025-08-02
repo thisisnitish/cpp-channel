@@ -1,15 +1,15 @@
 # CPP Channel
 
-CPP channel is an attempt to provide an API for Go like channels in CPP. It supports buffered and unbuffered 
+CPP channel is an attempt to provide an API for Go like channels in CPP 17. It supports buffered and unbuffered 
 communication, blocking and non-blocking operations, async patterns, and a select mechanism.
 
 ## Core Features
 ### Channels
 - Buffered and unbuffered
 - Blocking send/receive
-- Non-blocking `try_send` / `try_receive`
+- Non-blocking `try_send`/`try_receive`
 - Async send/receive (`std::future`)
-- Multiple producers / consumers
+- Multiple producers/consumers
 - Close semantics
 
 ### Select
