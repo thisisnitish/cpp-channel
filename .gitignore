@@ -4,6 +4,8 @@
 # Compiled C/C++ files
 build/
 
+todo.md
+
 # vs code workspace settings
 .vscode/
 
