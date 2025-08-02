@@ -5,9 +5,12 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "../include/channel.hpp"
 
@@ -349,6 +352,58 @@ void test_async_send_after_close_fails() {
     log("Testing async send after close fails completed successfully...");
 }
 
+void test_multi_producer_consumer_without_select() {
+    log("Testing multiple producer consumer without select in single channel...");
+    constexpr int num_producers = 3;
+    constexpr int items_per_producer = 50;
+    constexpr int num_consumers = 4;
+    const int expected_total = num_producers * items_per_producer;
+
+    Channel<int> ch(20);  // buffered channel
+
+    vector<int> consumed;
+    mutex consumed_mtx;
+
+    // Producers
+    vector<thread> producers;
+    for (int p = 0; p < num_producers; ++p) {
+        producers.emplace_back([p, &ch]() {
+            for (int i = 0; i < items_per_producer; ++i) {
+                int val = p * 1000 + i;
+                ch.send(val);
+            }
+        });
+    }
+
+    // Consumers
+    vector<thread> consumers;
+    for (int c = 0; c < num_consumers; ++c) {
+        consumers.emplace_back([&]() {
+            while (true) {
+                auto maybe = ch.receive();
+                if (!maybe.has_value()) break;  // closed and drained
+                int v = *maybe;
+                lock_guard lock(consumed_mtx);
+                consumed.push_back(v);
+            }
+        });
+    }
+
+    for (auto& t : producers) t.join();
+    ch.close();
+    for (auto& t : consumers) t.join();
+
+    {
+        lock_guard lock(consumed_mtx);
+        log("Expected=" + to_string(expected_total) + " Consumed=" + to_string(consumed.size()));
+        assert((int)consumed.size() == expected_total);
+        set<int> uniq(consumed.begin(), consumed.end());
+        assert((int)uniq.size() == expected_total);
+    }
+
+    log("Testing multiple producer consumer without select in single channel completed...");
+}
+
 int main() {
     testing_unbuffered_channel();
     cout << "----------------------------------" << endl;
@@ -367,6 +422,8 @@ int main() {
     test_async_receive_after_close_returns_nullopt();
     cout << "----------------------------------" << endl;
     test_async_send_after_close_fails();
+    cout << "----------------------------------" << endl;
+    test_multi_producer_consumer_without_select();
 
     return 0;
 }
