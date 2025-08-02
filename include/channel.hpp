@@ -30,6 +30,21 @@ class Channel {
 
     bool empty() const;
 
+    // register a condition_variable to notify when channel state changes
+    void add_notifier(std::condition_variable *cv) {
+        std::lock_guard lock(mtx);
+        notifiers_.push_back(cv);
+    }
+
+    bool is_receive_ready() {
+        std::lock_guard<std::mutex> lock(mtx);
+        if (buffer_size_ == 0) {
+            return has_data_;
+        } else {
+            return !buffer_.empty();
+        }
+    }
+
    private:
     mutable mutex mtx;
     condition_variable cv_sender_;
@@ -45,6 +60,14 @@ class Channel {
 
     bool closed_ = false;           // Indicates if the channel is closed
     size_t waiting_receivers_ = 0;  // Count of receivers waiting to receive
+
+    std::vector<std::condition_variable *> notifiers_;  // subscribers (Selects etc.)
+
+    void notify_all_registered() {
+        for (auto cv : notifiers_) {
+            cv->notify_all();
+        }
+    }
 };
 
 #include "channel.tpp"

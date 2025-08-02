@@ -5,9 +5,12 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <mutex>
 #include <optional>
+#include <set>
 #include <string>
 #include <thread>
+#include <unordered_set>
 
 #include "../include/channel.hpp"
 #include "../include/select.hpp"
@@ -227,6 +230,83 @@ void test_select_multiple_async_receives() {
     log("Testing select multiple asynchronous receives completed...");
 }
 
+void test_fan_in_with_select_blocking_cv() {
+    std::cout << "[Test] fan-in with select (blocking cv)\n";
+    constexpr int per = 10;
+    Channel<int> ch1(10), ch2(10);
+
+    std::atomic<bool> p1_done{false}, p2_done{false};
+    std::thread p1([&]() {
+        for (int i = 0; i < per; ++i) ch1.send(100 + i);
+        ch1.close();
+        p1_done.store(true);
+        std::cout << "[Producer 1] done\n";
+    });
+    std::thread p2([&]() {
+        for (int i = 0; i < per; ++i) ch2.send(200 + i);
+        ch2.close();
+        p2_done.store(true);
+        std::cout << "[Producer 2] done\n";
+    });
+
+    std::set<int> collected;
+    std::mutex collected_mtx;
+    const int expected_total = 2 * per;
+    auto overall_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+
+    while ((int)collected.size() < expected_total) {
+        if (std::chrono::steady_clock::now() >= overall_deadline) {
+            std::cerr << "[Test] overall timeout\n";
+            break;
+        }
+
+        Select<int> sel;
+        sel.receive(ch1).receive(ch2);  // no default
+
+        auto opt_idx = sel.run_blocking(std::chrono::milliseconds(1000));
+        if (!opt_idx.has_value()) continue;
+
+        size_t idx = *opt_idx;
+        auto val = sel.received_value();
+        if ((idx == 0 || idx == 1) && val.has_value()) {
+            int v = *val;
+            std::lock_guard lock(collected_mtx);
+            if (collected.insert(v).second) {
+                std::cout << "[Select] picked case " << idx << " value=" << v << "\n";
+            }
+        }
+    }
+
+    // Drain any remaining values from channels after loop ends
+    while (auto v = ch1.try_receive()) {
+        std::lock_guard lock(collected_mtx);
+        collected.insert(*v);
+        std::cerr << "[Drain] ch1 leftover: " << *v << "\n";
+    }
+    while (auto v = ch2.try_receive()) {
+        std::lock_guard lock(collected_mtx);
+        collected.insert(*v);
+        std::cerr << "[Drain] ch2 leftover: " << *v << "\n";
+    }
+
+    p1.join();
+    p2.join();
+
+    // std::cerr << "[Diagnostic] draining ch1 directly:\n";
+    // while (auto v = ch1.try_receive()) std::cerr << "  ch1 leftover: " << *v << "\n";
+    // std::cerr << "[Diagnostic] draining ch2 directly:\n";
+    // while (auto v = ch2.try_receive()) std::cerr << "  ch2 leftover: " << *v << "\n";
+
+    {
+        std::lock_guard lock(collected_mtx);
+        std::cout << "[Test] Expected=" << expected_total
+                  << " Collected=" << collected.size() << "\n";
+        assert((int)collected.size() == expected_total);
+    }
+
+    std::cout << "✅ test_fan_in_with_select_blocking_cv passed\n";
+}
+
 int main() {
     test_select_recv_ready();
     cout << "----------------------------------" << endl;
@@ -243,6 +323,8 @@ int main() {
     test_select_recv_after_close();
     cout << "----------------------------------" << endl;
     test_select_multiple_async_receives();
+    cout << "----------------------------------" << endl;
+    test_fan_in_with_select_blocking_cv();
 
     return 0;
 }

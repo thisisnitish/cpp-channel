@@ -22,6 +22,7 @@ void Channel<T>::send(const T &value) {
         has_data_ = true;
 
         cv_receiver_.notify_one();  // Notify a waiting receiver
+        notify_all_registered();
 
         // Wait until receiver consumes it
         cv_sender_.wait(lock, [this]() { return !has_data_ || closed_; });
@@ -37,6 +38,7 @@ void Channel<T>::send(const T &value) {
 
         // Notify a waiting receiver that there's new data
         cv_receiver_.notify_one();
+        notify_all_registered();
     }
 }
 
@@ -63,6 +65,7 @@ optional<T> Channel<T>::receive() {
 
         // Notify sender that data has been consumed
         cv_sender_.notify_one();
+        notify_all_registered();
 
         return value;
     } else {
@@ -80,6 +83,7 @@ optional<T> Channel<T>::receive() {
 
         // Notify sender that there's space in the buffer
         cv_sender_.notify_one();
+        notify_all_registered();
         return value;
     }
 }
@@ -93,6 +97,7 @@ void Channel<T>::close() {
     closed_ = true;
     cv_receiver_.notify_all();  // Notify all receivers that channel is closed
     cv_sender_.notify_all();    // Notify all senders that channel is closed
+    notify_all_registered();
 }
 
 template <typename T>
@@ -123,6 +128,7 @@ bool Channel<T>::try_send(const T &value) {
         data_ = value;
         has_data_ = true;
         cv_receiver_.notify_one();  // Notify a waiting receiver
+        notify_all_registered();
         return true;
 
     } else {
@@ -130,6 +136,7 @@ bool Channel<T>::try_send(const T &value) {
         if (buffer_.size() >= buffer_size_) return false;  // Buffer is full
         buffer_.push(value);
         cv_receiver_.notify_one();  // Notify a waiting receiver
+        notify_all_registered();
         return true;
     }
 }
@@ -146,6 +153,7 @@ optional<T> Channel<T>::try_receive() {
         data_.reset();  // Clear the data after receiving
         has_data_ = false;
         cv_sender_.notify_one();  // Notify sender that data has been consumed
+        notify_all_registered();
         return value;
     } else {
         // buffered behavior
@@ -153,6 +161,7 @@ optional<T> Channel<T>::try_receive() {
         T value = buffer_.front();
         buffer_.pop();
         cv_sender_.notify_one();  // Notify a waiting sender that there's space in the buffer
+        notify_all_registered();
         return value;
     }
 }
