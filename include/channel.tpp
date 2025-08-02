@@ -1,9 +1,10 @@
 #pragma once
 
+// Constructor
 template <typename T>
 Channel<T>::Channel(size_t buffer_size) : buffer_size_(buffer_size), has_data_(false), closed_(false) {}
 
-// Send a value to the channel - Handles both buffered and unbuffered channels
+// Send a value to the channel - Handles both buffered and unbuffered channels - Blocking Send
 template <typename T>
 void Channel<T>::send(const T &value) {
     unique_lock<mutex> lock(mtx);
@@ -42,7 +43,7 @@ void Channel<T>::send(const T &value) {
     }
 }
 
-// Receive a value from the channel - Handles both buffered and unbuffered channels
+// Receive a value from the channel - Handles both buffered and unbuffered channels - Blocking Receive
 template <typename T>
 optional<T> Channel<T>::receive() {
     unique_lock<mutex> lock(mtx);
@@ -88,6 +89,7 @@ optional<T> Channel<T>::receive() {
     }
 }
 
+// Close the channel
 template <typename T>
 void Channel<T>::close() {
     unique_lock<mutex> lock(mtx);
@@ -95,17 +97,21 @@ void Channel<T>::close() {
         return;  // Already closed
 
     closed_ = true;
+
+    // Notify all waiting threads
     cv_receiver_.notify_all();  // Notify all receivers that channel is closed
     cv_sender_.notify_all();    // Notify all senders that channel is closed
     notify_all_registered();
 }
 
+// Check closed state
 template <typename T>
 bool Channel<T>::is_closed() const {
     unique_lock<mutex> lock(mtx);
     return closed_;
 }
 
+// Check emptiness
 template <typename T>
 bool Channel<T>::empty() const {
     std::lock_guard<std::mutex> lock(mtx);
@@ -116,6 +122,7 @@ bool Channel<T>::empty() const {
     }
 }
 
+// Non-blocking Send
 template <typename T>
 bool Channel<T>::try_send(const T &value) {
     unique_lock<mutex> lock(mtx);
@@ -141,6 +148,7 @@ bool Channel<T>::try_send(const T &value) {
     }
 }
 
+// Non-blocking Receive
 template <typename T>
 optional<T> Channel<T>::try_receive() {
     unique_lock<mutex> lock(mtx);
@@ -166,6 +174,7 @@ optional<T> Channel<T>::try_receive() {
     }
 }
 
+// Asynchronous Send using std::async
 template <typename T>
 future<void> Channel<T>::async_send(const T &value) {
     return async(launch::async, [this, value]() {
@@ -173,6 +182,7 @@ future<void> Channel<T>::async_send(const T &value) {
     });
 }
 
+// Asynchronous Receive using std::async
 template <typename T>
 future<optional<T>> Channel<T>::async_receive() {
     return async(launch::async, [this]() {

@@ -9,60 +9,132 @@
 
 using namespace std;
 
+/**
+ * @file channel.hpp
+ * @brief Declaration of a Go-style channel in C++ supporting synchronous/asynchronous send/receive.
+ *
+ * @details
+ * This Channel<T> implementation supports:
+ *  - Buffered and unbuffered channels.
+ *  - Blocking and non-blocking send/receive.
+ *  - Async send/receive using std::future.
+ *  - Close semantics (no more sends allowed).
+ *  - Optional integration with Select<T> through notifier registration.
+ *
+ * @note Thread-safe: All public methods are safe for concurrent access
+ *       from multiple producer and multiple consumer threads.
+ *
+ * @tparam T The type of messages passed through the channel.
+ */
+
 template <typename T>
 class Channel {
    public:
-    explicit Channel(size_t buffer_size = 0);  // buffer_size = 0 means unbuffered channel
+    /**
+     * @brief Constructs a Channel with optional buffering.
+     * @param buffer_size Size of internal buffer. Set to 0 for unbuffered channel.
+     */
+    explicit Channel(size_t buffer_size = 0);
 
+    /**
+     * @brief Blocking send. Waits until the value is accepted by a receiver.
+     * @param value The value to send.
+     * @throws runtime_error if the channel is closed.
+     */
     void send(const T &value);  // Blocking send
-    optional<T> receive();      // Blocking receive, returns nullopt if channel is closed and empty
 
-    bool try_send(const T &value);  // Non-blocking send, returns false if channel is closed or full
-    optional<T> try_receive();      // Non-blocking receive, returns nullopt if channel is closed and empty
+    /**
+     * @brief Blocking receive. Waits for a value if the channel is not empty.
+     * @return An optional value; std::nullopt if channel is closed and empty.
+     */
+    optional<T> receive();
 
-    // Async Send: returns a future that resolves when the value is sent
+    /**
+     * @brief Non-blocking send.
+     * @param value The value to send.
+     * @return true if the value was accepted, false if channel is full or closed.
+     */
+    bool try_send(const T &value);
+
+    /**
+     * @brief Non-blocking receive.
+     * @return An optional value if available, otherwise std::nullopt.
+     */
+    optional<T> try_receive();
+
+    /**
+     * @brief Asynchronously sends a value.
+     * @param value The value to send.
+     * @return A future that completes when the value is sent.
+     */
     future<void> async_send(const T &value);
-    // Async Receive: returns a future that resolves to the received value or nullopt if closed and empty
+
+    /**
+     * @brief Asynchronously receives a value.
+     * @return A future that resolves to a received value or nullopt if closed and empty.
+     */
     future<optional<T>> async_receive();
 
-    void close();            // Close the channel, no more sends allowed
-    bool is_closed() const;  // Check if the channel is closed
+    /**
+     * @brief Closes the channel. Further sends will fail.
+     */
+    void close();
 
+    /**
+     * @brief Checks if the channel is closed.
+     * @return true if closed, false otherwise.
+     */
+    bool is_closed() const;
+
+    /**
+     * @brief Checks if the channel is empty.
+     * @return true if empty or unbuffered with no pending data.
+     */
     bool empty() const;
 
-    // register a condition_variable to notify when channel state changes
+    /**
+     * @brief Registers a condition_variable to notify when channel state changes.
+     * Useful for implementing select-like functionality.
+     */
     void add_notifier(std::condition_variable *cv) {
         std::lock_guard lock(mtx);
         notifiers_.push_back(cv);
     }
 
+    /**
+     * @brief Checks whether a receive operation can proceed immediately.
+     * @return true if data is available, false otherwise.
+     */
     bool is_receive_ready() {
         std::lock_guard<std::mutex> lock(mtx);
-        if (buffer_size_ == 0) {
+        if (buffer_size_ == 0) {  // unbuffered case
             return has_data_;
-        } else {
+        } else {  // buffered case
             return !buffer_.empty();
         }
     }
 
    private:
     mutable mutex mtx;
-    condition_variable cv_sender_;
-    condition_variable cv_receiver_;
+    condition_variable cv_sender_;    // Notifies senders when space is available or data is consumed.
+    condition_variable cv_receiver_;  // Notifies receivers when data is available.
 
     // For buffered channels
     queue<T> buffer_;
-    size_t buffer_size_;
+    size_t buffer_size_;  // 0 means unbuffered channel
 
     // For unbuffered channels, we use an optional to hold the data.
     optional<T> data_;
     bool has_data_ = false;
 
     bool closed_ = false;           // Indicates if the channel is closed
-    size_t waiting_receivers_ = 0;  // Count of receivers waiting to receive
+    size_t waiting_receivers_ = 0;  // Used to help with non-blocking send in unbuffered mode
 
-    std::vector<std::condition_variable *> notifiers_;  // subscribers (Selects etc.)
+    std::vector<std::condition_variable *> notifiers_;  // External notifiers for select-like coordination
 
+    /**
+     * @brief Notifies all registered condition variables (e.g., select implementations).
+     */
     void notify_all_registered() {
         for (auto cv : notifiers_) {
             cv->notify_all();
