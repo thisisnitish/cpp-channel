@@ -231,7 +231,7 @@ void test_select_multiple_async_receives() {
 }
 
 void test_fan_in_with_select_blocking_cv() {
-    std::cout << "[Test] fan-in with select (blocking cv)\n";
+    log("Testing fan-in with select (blocking cv)...");
     constexpr int per = 10;
     Channel<int> ch1(10), ch2(10);
 
@@ -240,13 +240,13 @@ void test_fan_in_with_select_blocking_cv() {
         for (int i = 0; i < per; ++i) ch1.send(100 + i);
         ch1.close();
         p1_done.store(true);
-        std::cout << "[Producer 1] done\n";
+        log("[Producer 1] done");
     });
     std::thread p2([&]() {
         for (int i = 0; i < per; ++i) ch2.send(200 + i);
         ch2.close();
         p2_done.store(true);
-        std::cout << "[Producer 2] done\n";
+        log("[Producer 2] done");
     });
 
     std::set<int> collected;
@@ -256,7 +256,7 @@ void test_fan_in_with_select_blocking_cv() {
 
     while ((int)collected.size() < expected_total) {
         if (std::chrono::steady_clock::now() >= overall_deadline) {
-            std::cerr << "[Test] overall timeout\n";
+            log("[Test] overall timeout");
             break;
         }
 
@@ -272,7 +272,7 @@ void test_fan_in_with_select_blocking_cv() {
             int v = *val;
             std::lock_guard lock(collected_mtx);
             if (collected.insert(v).second) {
-                std::cout << "[Select] picked case " << idx << " value=" << v << "\n";
+                log("[Select] picked case " + to_string(idx) + " value=" + to_string(v));
             }
         }
     }
@@ -281,12 +281,12 @@ void test_fan_in_with_select_blocking_cv() {
     while (auto v = ch1.try_receive()) {
         std::lock_guard lock(collected_mtx);
         collected.insert(*v);
-        std::cerr << "[Drain] ch1 leftover: " << *v << "\n";
+        log("[Drain] ch1 leftover: " + to_string(*v));
     }
     while (auto v = ch2.try_receive()) {
         std::lock_guard lock(collected_mtx);
         collected.insert(*v);
-        std::cerr << "[Drain] ch2 leftover: " << *v << "\n";
+        log("[Drain] ch2 leftover: " + to_string(*v));
     }
 
     p1.join();
@@ -299,12 +299,14 @@ void test_fan_in_with_select_blocking_cv() {
 
     {
         std::lock_guard lock(collected_mtx);
-        std::cout << "[Test] Expected=" << expected_total
-                  << " Collected=" << collected.size() << "\n";
+        // std::cout << "[Test] Expected=" << expected_total
+        //           << " Collected=" << collected.size() << "\n";
+
+        log("[Test] Expected=" + to_string(expected_total) + " Collected=" + to_string(collected.size()));
         assert((int)collected.size() == expected_total);
     }
 
-    std::cout << "✅ test_fan_in_with_select_blocking_cv passed\n";
+    log("Testing fan-in with select (blocking cv) completed...");
 }
 
 int main() {
