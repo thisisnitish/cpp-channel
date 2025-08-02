@@ -3,14 +3,14 @@
 // Register a receive case
 template <typename T>
 Select<T>& Select<T>::receive(Channel<T>& chan) {
-    cases_.push_back(Case{CaseType::RECV, &chan, nullopt, nullopt, false});
+    cases_.push_back(Case{CaseType::RECV, &chan, std::nullopt, std::nullopt, false});
     return *this;
 }
 
 // Register a send case
 template <typename T>
 Select<T>& Select<T>::send(Channel<T>& chan, const T& val) {
-    cases_.push_back(Case{CaseType::SEND, &chan, val, nullopt, false});
+    cases_.push_back(Case{CaseType::SEND, &chan, val, std::nullopt, false});
     return *this;
 }
 
@@ -33,9 +33,9 @@ bool Select<T>::run() {
         c.recv_value.reset();
     }
 
-    vector<size_t> ready_indices;
+    std::vector<std::size_t> ready_indices;
 
-    for (size_t i = 0; i < cases_.size(); i++) {
+    for (std::size_t i = 0; i < cases_.size(); i++) {
         Case& c = cases_[i];
         if (c.type == CaseType::RECV) {
             // auto val = c.chan->try_receive();
@@ -53,10 +53,10 @@ bool Select<T>::run() {
     }
 
     if (!ready_indices.empty()) {
-        random_device rd;
-        mt19937 gen(rd());  // Mersenne Twister engine (a high-quality pseudo-random generator)
+        std::random_device rd;
+        std::mt19937 gen(rd());  // Mersenne Twister engine (a high-quality pseudo-random generator)
         // Random selection on ready cases - Fairness on multiple ready cases
-        uniform_int_distribution<size_t> dist(0, ready_indices.size() - 1);
+        std::uniform_int_distribution<std::size_t> dist(0, ready_indices.size() - 1);
         selected_index_ = ready_indices[dist(gen)];
 
         Case& chosen = cases_[*selected_index_];
@@ -81,7 +81,7 @@ bool Select<T>::run() {
 
 // Blocking run with optional timeout
 template <typename T>
-std::optional<size_t> Select<T>::run_blocking(std::chrono::milliseconds timeout) {
+std::optional<std::size_t> Select<T>::run_blocking(std::chrono::milliseconds timeout) {
     auto deadline = std::chrono::steady_clock::now() + timeout;
 
     // Register for wakeup notifications
@@ -132,14 +132,15 @@ size_t Select<T>::selected_index() const {
 // Retrieve received value if applicable
 template <typename T>
 optional<T> Select<T>::received_value() const {
-    if (!selected_index_ || !selected_index_.has_value() || *selected_index_ >= cases_.size()) return nullopt;
+    if (!selected_index_ || !selected_index_.has_value() || *selected_index_ >= cases_.size())
+        return std::nullopt;
     size_t idx = *selected_index_;
     return cases_[idx].recv_value;
 }
 
 // Check if a specific case was successful or not
 template <typename T>
-bool Select<T>::case_succeeded(size_t index) const {
+bool Select<T>::case_succeeded(std::size_t index) const {
     if (index >= cases_.size()) return false;
     return cases_[index].success;
 }

@@ -1,13 +1,16 @@
 #pragma once
 
+#include <atomic>
 #include <cassert>
+#include <chrono>
+#include <condition_variable>
 #include <iostream>
+#include <mutex>
 #include <optional>
 #include <random>
 #include <vector>
 
 #include "channel.hpp"
-using namespace std;
 
 /**
  * @file select.hpp
@@ -80,20 +83,20 @@ class Select {
      * @brief Gets the index of the selected case after a successful run.
      * @return Index of the chosen case, or -1 if none.
      */
-    size_t selected_index() const;
+    std::size_t selected_index() const;
 
     /**
      * @brief Retrieves the value received in a selected receive case.
      * @return Optional containing the received value, or nullopt if not applicable.
      */
-    optional<T> received_value() const;
+    std::optional<T> received_value() const;
 
     /**
      * @brief Checks whether a specific case (by index) was successful.
      * @param index Index of the case to check.
      * @return true if that case succeeded.
      */
-    bool case_succeeded(size_t index) const;
+    bool case_succeeded(std::size_t index) const;
 
    private:
     enum class CaseType { SEND,
@@ -102,14 +105,14 @@ class Select {
     struct Case {
         CaseType type;
         Channel<T>* chan;
-        optional<T> send_value;
-        optional<T> recv_value;
+        std::optional<T> send_value;
+        std::optional<T> recv_value;
         bool success = false;
     };
 
-    vector<Case> cases_;               // List of registered cases
-    optional<size_t> selected_index_;  // Index of selected case
-    bool has_default_ = false;         // Flag for default case
+    std::vector<Case> cases_;                    // List of registered cases
+    std::optional<std::size_t> selected_index_;  // Index of selected case
+    bool has_default_ = false;                   // Flag for default case
 
     std::atomic<bool> cancelled_{false};  // Cancellation state
 

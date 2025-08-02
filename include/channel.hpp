@@ -7,8 +7,6 @@
 #include <queue>
 #include <stdexcept>
 
-using namespace std;
-
 /**
  * @file channel.hpp
  * @brief Declaration of a Go-style channel in C++ supporting synchronous/asynchronous send/receive.
@@ -34,7 +32,7 @@ class Channel {
      * @brief Constructs a Channel with optional buffering.
      * @param buffer_size Size of internal buffer. Set to 0 for unbuffered channel.
      */
-    explicit Channel(size_t buffer_size = 0);
+    explicit Channel(std::size_t buffer_size = 0);
 
     /**
      * @brief Blocking send. Waits until the value is accepted by a receiver.
@@ -47,7 +45,7 @@ class Channel {
      * @brief Blocking receive. Waits for a value if the channel is not empty.
      * @return An optional value; std::nullopt if channel is closed and empty.
      */
-    optional<T> receive();
+    std::optional<T> receive();
 
     /**
      * @brief Non-blocking send.
@@ -60,20 +58,20 @@ class Channel {
      * @brief Non-blocking receive.
      * @return An optional value if available, otherwise std::nullopt.
      */
-    optional<T> try_receive();
+    std::optional<T> try_receive();
 
     /**
      * @brief Asynchronously sends a value.
      * @param value The value to send.
      * @return A future that completes when the value is sent.
      */
-    future<void> async_send(const T &value);
+    std::future<void> async_send(const T &value);
 
     /**
      * @brief Asynchronously receives a value.
      * @return A future that resolves to a received value or nullopt if closed and empty.
      */
-    future<optional<T>> async_receive();
+    std::future<std::optional<T>> async_receive();
 
     /**
      * @brief Closes the channel. Further sends will fail.
@@ -115,20 +113,20 @@ class Channel {
     }
 
    private:
-    mutable mutex mtx;
-    condition_variable cv_sender_;    // Notifies senders when space is available or data is consumed.
-    condition_variable cv_receiver_;  // Notifies receivers when data is available.
+    mutable std::mutex mtx;
+    std::condition_variable cv_sender_;    // Notifies senders when space is available or data is consumed.
+    std::condition_variable cv_receiver_;  // Notifies receivers when data is available.
 
     // For buffered channels
-    queue<T> buffer_;
-    size_t buffer_size_;  // 0 means unbuffered channel
+    std::queue<T> buffer_;
+    std::size_t buffer_size_;  // 0 means unbuffered channel
 
     // For unbuffered channels, we use an optional to hold the data.
     optional<T> data_;
     bool has_data_ = false;
 
-    bool closed_ = false;           // Indicates if the channel is closed
-    size_t waiting_receivers_ = 0;  // Used to help with non-blocking send in unbuffered mode
+    bool closed_ = false;                // Indicates if the channel is closed
+    std::size_t waiting_receivers_ = 0;  // Used to help with non-blocking send in unbuffered mode
 
     std::vector<std::condition_variable *> notifiers_;  // External notifiers for select-like coordination
 
