@@ -131,7 +131,7 @@ size_t Select<T>::selected_index() const {
 
 // Retrieve received value if applicable
 template <typename T>
-optional<T> Select<T>::received_value() const {
+std::optional<T> Select<T>::received_value() const {
     if (!selected_index_ || !selected_index_.has_value() || *selected_index_ >= cases_.size())
         return std::nullopt;
     size_t idx = *selected_index_;

@@ -122,7 +122,7 @@ class Channel {
     std::size_t buffer_size_;  // 0 means unbuffered channel
 
     // For unbuffered channels, we use an optional to hold the data.
-    optional<T> data_;
+    std::optional<T> data_;
     bool has_data_ = false;
 
     bool closed_ = false;                // Indicates if the channel is closed
