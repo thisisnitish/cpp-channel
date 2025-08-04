@@ -17,7 +17,6 @@
 
 using namespace std;
 
-// TODO: Refactor the test cases in a much better way...
 void log(const std::string& message) {
     // Get current time
     auto now = std::chrono::system_clock::now();
